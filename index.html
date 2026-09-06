@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+	<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>GONGO LIVE</title>
+	<style>
+		/* Reset margins and ensure the page takes up 100% of the viewport */
+		html,
+		body {
+			margin: 0;
+			padding: 0;
+			width: 100%;
+			height: 100%;
+			background-color: #0e0e10;
+			/* Dark background matching modern streaming sites */
+			overflow: hidden;
+			/* Prevents double scrollbars on the main page */
+		}
+
+		/* Container that aligns the two iframes side-by-side */
+		.stream-container {
+			display: flex;
+			flex-direction: row;
+			width: 100%;
+			height: 100%;
+		}
+
+		.stream-container.flip {
+			flex-direction: row-reverse;
+		}
+
+		/* Styling applied to both iframes */
+		iframe {
+			border: none;
+		}
+
+		/* Left frame: Video player gets more width (e.g., 75%) */
+		.video-frame {
+			flex-grow: 1;
+			width: 0%;
+		}
+
+		/* Right frame: Chat gets a fixed or smaller percentage width (e.g., 25%) */
+		.chat-frame {
+			width: 25%;
+			/* border-left: 1px solid #2f2f35; */
+		}
+
+		.divider {
+			position: relative;
+			user-select: none;
+			width: 1px;
+			background: #2f2f35;
+		}
+
+		.divider .divider-inner {
+			cursor: default;
+			position: absolute;
+			transform: translateX(-50%);
+			height: 100%;
+			width: 10px;
+		}
+
+		.divider .divider-inner:hover {
+			background: #2f2f3588;
+			border: 1px solid #2f2f35;
+		}
+
+		.divider .divider-inner:active {
+			cursor: col-resize;
+		}
+	</style>
+	<script>
+		// minimum chat/video width
+		const clamp_margin = 0.15;
+		const flip_margin = 0.05;
+
+		function clamp(val, low = clamp_margin, high = 1 - clamp_margin) {
+			return Math.min(Math.max(val, low), high);
+		}
+
+		// load values from local storage
+		function loadStorage() {
+			const chatwidth = parseFloat(localStorage.getItem('chatwidth'));
+			if (!isNaN(chatwidth)) {
+				console.log(chatwidth)
+				const clamped = clamp(chatwidth);
+				setWidth(clamped)
+			}
+
+			const chatflipped = localStorage.getItem('chatflip') === 'true';
+			if (chatflipped) {
+				document.querySelector('.stream-container').classList.add('flip')
+			}
+
+			return { chatwidth, chatflipped }
+		}
+
+		function setWidth(val) {
+			document.querySelector('.chat-frame').style.width = `${val * 100}%`;
+		}
+
+		function setFlipped(val) {
+			const flippedchat = document.querySelector('.stream-container').classList.contains('flip');
+			if (val && !flippedchat) {
+				document.querySelector('.stream-container').classList.add('flip')
+			} else if (!val && flippedchat) {
+				document.querySelector('.stream-container').classList.remove('flip')
+			}
+		}
+
+		// main script
+		function main() {
+			// load from storage after a reload
+			const storage = loadStorage()
+
+			let dragging = false
+			let prevwidth = storage.chatwidth
+			let newwidth = 0
+			let prevflip = storage.chatflipped
+			let newflip = false
+
+			// reset width when you double click the divider
+			document.querySelector('.divider').addEventListener('dblclick', () => {
+				document.querySelector('.chat-frame').style.removeProperty('width')
+				localStorage.removeItem('chatwidth')
+			})
+
+			// start dragging
+			document.querySelector('.divider').addEventListener('mousedown', () => {
+				dragging = true
+			})
+			// end dragging
+			document.addEventListener('mouseup', () => {
+				if (newflip !== prevflip) {
+					// flip chat/stream
+					localStorage.setItem('chatflip', newflip.toString())
+				} else {
+					// resize chat
+					localStorage.setItem('chatwidth', newwidth.toString())
+				}
+
+				setFlipped(newflip)
+				setWidth(newwidth)
+
+				dragging = false
+				prevflip = newflip
+				prevwidth = newwidth
+			})
+			// moving mouse (while dragging)
+			document.body.addEventListener('mousemove', (e) => {
+				if (!dragging) {
+					return
+				}
+
+				const locBase = clamp(e.clientX / window.innerWidth, 0, 1)
+				const loc = prevflip ? locBase : 1 - locBase
+
+				// special case, flip chat/stream
+				if (loc < flip_margin || loc > 1 - flip_margin) {
+					newflip = !prevflip
+					newwidth = prevwidth
+				} else {
+					// regular case, resize cha
+					newflip = prevflip
+					newwidth = clamp(loc)
+				}
+
+				setFlipped(newflip)
+				setWidth(newwidth)
+			})
+		}
+		addEventListener('load', main)
+	</script>
+</head>
+
+<body>
+	<div class="stream-container">
+		<!-- Video Player Frame (Left) -->
+		<iframe class="video-frame" src="https://player.angelthump.com/?channel=fortninety" allowfullscreen="">
+		</iframe>
+		<!-- Divider -->
+		<div class="divider">
+			<div class="divider-inner"></div>
+		</div>
+		<!-- Twitch Chat Frame (Right) -->
+		<iframe class="chat-frame" src="https://www.twitch.tv/embed/fort90tv/chat?darkpopout&parent=fort90.tv">
+		</iframe>
+	</div>
+</body></html>
